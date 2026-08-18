@@ -257,17 +257,6 @@
   .toast.show { transform: translateY(0); opacity: 1; }
   .toast.err { border-color: var(--red); color: var(--red); }
   .toast.ok { border-color: var(--green); color: var(--green); }
-
-  /* Configuration Modal */
-  .modal-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-    display: none; align-items: center; justify-content: center; z-index: 200;
-  }
-  .modal-overlay.open { display: flex; }
-  .modal {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 20px; width: 460px; max-width: 90vw;
-  }
 </style>
 </head>
 <body>
@@ -280,7 +269,6 @@
     <div class="counter-badge bapp"><span class="lbl">BAPP:</span><span class="val" id="cnt-bapp">000</span></div>
     <div class="counter-badge bast"><span class="lbl">BAST:</span><span class="val" id="cnt-bast">000</span></div>
   </div>
-  <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;margin-left:10px" onclick="openConfigModal()">⚙️ Config</button>
 </header>
 
 <div class="layout">
@@ -360,28 +348,14 @@
   </div>
 </div>
 
-<!-- Modal Config -->
-<div class="modal-overlay" id="modal-config">
-  <div class="modal">
-    <h3 style="margin-bottom:12px;font-family:var(--mono)">⚙️ Config Web App Endpoint</h3>
-    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Jika dijalankan dari GitHub Pages / Local Browser, masukkan URL Web App Google Apps Script di sini:</p>
-    <div class="field">
-      <label>Apps Script Web App URL</label>
-      <input id="cfg-url" placeholder="https://script.google.com/macros/s/xxx/exec" />
-    </div>
-    <div style="display:flex;gap:8px;margin-top:14px">
-      <button class="btn btn-primary" onclick="saveConfig()">Simpan Config</button>
-      <button class="btn btn-ghost" onclick="closeConfigModal()">Tutup</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
+// HARDCODED BACKEND APPS SCRIPT URL (Sesuai milik pengguna)
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzdI1hv1aPVT189aV0Tc41ykQ7_IZn7P0FZi1Fvv7sFlaa78kQc6UDkBLchgeiy4ksMvg/exec';
+
 let currentStage = 'BAUT';
 let stateData = { counters: {}, history: [] };
-let GAS_URL = localStorage.getItem('ism_gen_url') || '';
 
 function setStage(st) {
   currentStage = st;
@@ -392,27 +366,12 @@ function toast(msg, type='info') {
   const el = document.getElementById('toast');
   el.textContent = msg;
   el.className = 'toast show ' + type;
-  setTimeout(() => el.className = 'toast', 3000);
-}
-
-function openConfigModal() {
-  document.getElementById('cfg-url').value = GAS_URL;
-  document.getElementById('modal-config').classList.add('open');
-}
-function closeConfigModal() {
-  document.getElementById('modal-config').classList.remove('open');
-}
-function saveConfig() {
-  GAS_URL = document.getElementById('cfg-url').value.trim();
-  localStorage.setItem('ism_gen_url', GAS_URL);
-  closeConfigModal();
-  toast('Config tersimpan!', 'ok');
-  fetchState();
+  setTimeout(() => el.className = 'toast', 3500);
 }
 
 /* API CALL WRAPPER */
 function runBackend(action, payload, onSuccess, onError) {
-  // 1. Jika dijalankan di dalam Google Apps Script Web App
+  // 1. Jika dijalankan di dalam Google Apps Script Web App (native index.html)
   if (typeof google !== 'undefined' && google.script && google.script.run) {
     google.script.run
       .withSuccessHandler(res => { if (onSuccess) onSuccess(res); })
@@ -421,13 +380,7 @@ function runBackend(action, payload, onSuccess, onError) {
     return;
   }
 
-  // 2. Jika dijalankan di GitHub Pages / External Browser via fetch POST
-  if (!GAS_URL) {
-    openConfigModal();
-    toast('Masukkan URL Apps Script Web App terlebih dahulu.', 'err');
-    return;
-  }
-
+  // 2. Jika dijalankan dari GitHub Pages via fetch POST JSON
   fetch(GAS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -443,7 +396,7 @@ function runBackend(action, payload, onSuccess, onError) {
     }
   })
   .catch(err => {
-    toast('Error jaringan ke Apps Script', 'err');
+    toast('Gagal koneksi ke Apps Script. Pastikan Who has access diatur ke "Anyone".', 'err');
     if (onError) onError(err);
   });
 }
