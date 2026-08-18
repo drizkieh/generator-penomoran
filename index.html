@@ -244,7 +244,7 @@
     font-size: 11px;
     padding: 3px 6px;
     border-radius: 4px;
-    width: 130px;
+    width: 120px;
   }
   .actid-input:focus { border-color: var(--orange); background: var(--bg); }
 
@@ -257,6 +257,17 @@
   .toast.show { transform: translateY(0); opacity: 1; }
   .toast.err { border-color: var(--red); color: var(--red); }
   .toast.ok { border-color: var(--green); color: var(--green); }
+
+  /* PIN Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: none; align-items: center; justify-content: center; z-index: 300;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; width: 360px; max-width: 90vw;
+  }
 </style>
 </head>
 <body>
@@ -348,14 +359,35 @@
   </div>
 </div>
 
+<!-- Modal PIN Super Admin -->
+<div class="modal-overlay" id="modal-pin">
+  <div class="modal">
+    <h3 style="margin-bottom:8px;font-family:var(--mono);color:var(--orange)">🔐 Verification Super Admin</h3>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px" id="pin-desc">Masukkan PIN Super Admin untuk mengedit atau menghapus data yang sudah tersimpan:</p>
+    <div class="field">
+      <label>PIN Super Admin</label>
+      <input type="password" id="pin-input" placeholder="Masukkan PIN..." onkeyup="if(event.key==='Enter')confirmPinAction()" />
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-primary" onclick="confirmPinAction()">Verifikasi PIN</button>
+      <button class="btn btn-ghost" onclick="closePinModal()">Batal</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
-// HARDCODED BACKEND APPS SCRIPT URL (Sesuai milik pengguna)
+// HARDCODED BACKEND APPS SCRIPT URL & SUPER ADMIN PIN
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzdI1hv1aPVT189aV0Tc41ykQ7_IZn7P0FZi1Fvv7sFlaa78kQc6UDkBLchgeiy4ksMvg/exec';
+const SUPER_ADMIN_PIN = 'ism2026';
 
 let currentStage = 'BAUT';
 let stateData = { counters: {}, history: [] };
+
+// Pending Action for PIN modal
+let pendingPinAction = null;
+let unlockedItems = {}; // track items unlocked by Super Admin in this session
 
 function setStage(st) {
   currentStage = st;
@@ -369,9 +401,36 @@ function toast(msg, type='info') {
   setTimeout(() => el.className = 'toast', 3500);
 }
 
+function openPinModal(desc, actionFn) {
+  pendingPinAction = actionFn;
+  document.getElementById('pin-desc').textContent = desc || 'Masukkan PIN Super Admin untuk melanjutkan:';
+  document.getElementById('pin-input').value = '';
+  document.getElementById('modal-pin').classList.add('open');
+  setTimeout(() => document.getElementById('pin-input').focus(), 100);
+}
+
+function closePinModal() {
+  pendingPinAction = null;
+  document.getElementById('modal-pin').classList.remove('open');
+}
+
+function confirmPinAction() {
+  const inputPin = document.getElementById('pin-input').value.trim();
+  if (inputPin !== SUPER_ADMIN_PIN) {
+    toast('❌ PIN Super Admin Salah! Akses ditolak.', 'err');
+    document.getElementById('pin-input').value = '';
+    return;
+  }
+  
+  closePinModal();
+  toast('🔓 Akses Super Admin Diberikan!', 'ok');
+  if (pendingPinAction) {
+    pendingPinAction();
+  }
+}
+
 /* API CALL WRAPPER */
 function runBackend(action, payload, onSuccess, onError) {
-  // 1. Jika dijalankan di dalam Google Apps Script Web App (native index.html)
   if (typeof google !== 'undefined' && google.script && google.script.run) {
     google.script.run
       .withSuccessHandler(res => { if (onSuccess) onSuccess(res); })
@@ -380,7 +439,6 @@ function runBackend(action, payload, onSuccess, onError) {
     return;
   }
 
-  // 2. Jika dijalankan dari GitHub Pages via fetch POST JSON
   fetch(GAS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -396,7 +454,7 @@ function runBackend(action, payload, onSuccess, onError) {
     }
   })
   .catch(err => {
-    toast('Gagal koneksi ke Apps Script. Pastikan Who has access diatur ke "Anyone".', 'err');
+    toast('Gagal koneksi ke Apps Script.', 'err');
     if (onError) onError(err);
   });
 }
@@ -450,19 +508,33 @@ function doGenerate() {
   });
 }
 
-function updateAct(id, newActId) {
+function saveActId(id, newActId) {
   runBackend('updateActId', { id: id, actId: newActId }, res => {
     const item = (stateData.history || []).find(h => String(h.id) === String(id));
     if (item) item.actId = newActId;
-    toast('ACT ID berhasil di-update!', 'ok');
+    unlockedItems[id] = false; // lock back after save
+    toast('ACT ID berhasil di-update & dikunci!', 'ok');
+    applyFilter();
+  });
+}
+
+function unlockEditWithPin(id) {
+  openPinModal('Hanya Super Admin yang dapat mengedit data yang sudah tersimpan. Masukkan PIN:', () => {
+    unlockedItems[id] = true;
+    applyFilter();
+    setTimeout(() => {
+      const el = document.getElementById(`act-input-${id}`);
+      if (el) el.focus();
+    }, 100);
   });
 }
 
 function deleteItem(id) {
-  if (!confirm('Yakin ingin menghapus record ini dari history?')) return;
-  runBackend('deleteHistory', { id: id }, res => {
-    toast('Record berhasil dihapus', 'ok');
-    fetchState();
+  openPinModal('Hanya Super Admin yang dapat menghapus data dari history. Masukkan PIN:', () => {
+    runBackend('deleteHistory', { id: id }, res => {
+      toast('Record berhasil dihapus', 'ok');
+      fetchState();
+    });
   });
 }
 
@@ -491,16 +563,32 @@ function renderTable(list) {
 
   tbody.innerHTML = list.slice().reverse().map(h => {
     const dt = new Date(h.ts).toLocaleString('id-ID');
+    const isUnlocked = !!unlockedItems[h.id];
+    const hasValue = !!(h.actId && h.actId.trim());
+
+    let actCellHtml = '';
+
+    if (!hasValue || isUnlocked) {
+      // Input Mode (Belum terisi ATAU Di-unlock dengan PIN)
+      actCellHtml = `
+        <div style="display:flex;align-items:center;gap:4px">
+          <input id="act-input-${h.id}" class="actid-input" value="${h.actId || ''}" placeholder="+ Isi ACT ID" onkeyup="if(event.key==='Enter')saveActId('${h.id}', this.value)" />
+          <button class="btn btn-ghost" style="padding:2px 6px;font-size:10px;color:var(--green);width:auto" onclick="saveActId('${h.id}', document.getElementById('act-input-${h.id}').value)" title="Simpan ACT ID">💾 Simpan</button>
+        </div>`;
+    } else {
+      // Locked Mode (Sudah terisi data & butuh PIN untuk Edit)
+      actCellHtml = `
+        <div style="display:flex;align-items:center;gap:6px">
+          <strong style="color:var(--yellow);font-size:11px">${h.actId}</strong>
+          <button class="btn btn-ghost" style="padding:2px 6px;font-size:9px;color:var(--text-muted);width:auto" onclick="unlockEditWithPin('${h.id}')" title="Edit dengan PIN Super Admin">✏️ Edit</button>
+        </div>`;
+    }
+
     return `<tr>
       <td><span class="badge-stage ${h.stage}">${h.stage}</span></td>
       <td><strong style="color:var(--text)">${h.formatted}</strong></td>
       <td>${h.po}</td>
-      <td>
-        <div style="display:flex;align-items:center;gap:4px">
-          <input id="act-input-${h.id}" class="actid-input" value="${h.actId || ''}" placeholder="+ Tambah ACT ID" onchange="updateAct('${h.id}', this.value)" />
-          <button class="btn btn-ghost" style="padding:2px 6px;font-size:10px;color:var(--green);width:auto" onclick="updateAct('${h.id}', document.getElementById('act-input-${h.id}').value)" title="Simpan ACT ID">💾 Simpan</button>
-        </div>
-      </td>
+      <td>${actCellHtml}</td>
       <td>Bulan ${h.month} / ${h.year}</td>
       <td style="color:var(--text-muted);font-size:10px">${dt}</td>
       <td>
