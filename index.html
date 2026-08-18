@@ -410,7 +410,6 @@ function openPinModal(desc, actionFn) {
 }
 
 function closePinModal() {
-  pendingPinAction = null;
   document.getElementById('modal-pin').classList.remove('open');
 }
 
@@ -422,10 +421,12 @@ function confirmPinAction() {
     return;
   }
   
+  const actionToRun = pendingPinAction;
+  pendingPinAction = null;
   closePinModal();
   toast('🔓 Akses Super Admin Diberikan!', 'ok');
-  if (pendingPinAction) {
-    pendingPinAction();
+  if (actionToRun) {
+    actionToRun();
   }
 }
 
@@ -512,7 +513,7 @@ function saveActId(id, newActId) {
   runBackend('updateActId', { id: id, actId: newActId }, res => {
     const item = (stateData.history || []).find(h => String(h.id) === String(id));
     if (item) item.actId = newActId;
-    unlockedItems[id] = false; // lock back after save
+    unlockedItems[String(id)] = false; // lock back after save
     toast('ACT ID berhasil di-update & dikunci!', 'ok');
     applyFilter();
   });
@@ -520,7 +521,7 @@ function saveActId(id, newActId) {
 
 function unlockEditWithPin(id) {
   openPinModal('Hanya Super Admin yang dapat mengedit data yang sudah tersimpan. Masukkan PIN:', () => {
-    unlockedItems[id] = true;
+    unlockedItems[String(id)] = true;
     applyFilter();
     setTimeout(() => {
       const el = document.getElementById(`act-input-${id}`);
@@ -563,7 +564,7 @@ function renderTable(list) {
 
   tbody.innerHTML = list.slice().reverse().map(h => {
     const dt = new Date(h.ts).toLocaleString('id-ID');
-    const isUnlocked = !!unlockedItems[h.id];
+    const isUnlocked = !!unlockedItems[String(h.id)];
     const hasValue = !!(h.actId && h.actId.trim());
 
     let actCellHtml = '';
