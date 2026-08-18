@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generator Nomor Dokumen ISM (BAUT / BAPP / BAST)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1f2937;
+    --border: #30363d;
+    --border2: #3d444d;
+    --orange: #f97316;
+    --orange-dim: rgba(249,115,22,0.15);
+    --green: #22c55e;
+    --green-dim: rgba(34,197,94,0.15);
+    --blue: #38bdf8;
+    --blue-dim: rgba(56,189,248,0.15);
+    --purple: #a855f7;
+    --yellow: #fbbf24;
+    --red: #ef4444;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --text-dim: #484f58;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--orange);
+  }
+  .logo span { color: var(--text-muted); font-weight: 400; font-size: 12px; }
+  .spacer { flex: 1; }
+
+  .counters-bar {
+    display: flex;
+    gap: 14px;
+  }
+  .counter-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .counter-badge .lbl { color: var(--text-muted); }
+  .counter-badge .val { font-weight: 700; }
+  .counter-badge.baut .val { color: var(--orange); }
+  .counter-badge.bapp .val { color: var(--blue); }
+  .counter-badge.bast .val { color: var(--green); }
+
+  .layout { display: flex; height: calc(100vh - 49px); }
+  
+  .sidebar {
+    width: 360px;
+    min-width: 360px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    gap: 16px;
+  }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .field { margin-bottom: 12px; }
+  .field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    border-color: var(--orange);
+  }
+
+  .stage-selector {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .stage-btn {
+    padding: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-muted);
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    transition: all .15s;
+  }
+  .stage-btn.active[data-stage="BAUT"] { background: var(--orange-dim); color: var(--orange); border-color: var(--orange); }
+  .stage-btn.active[data-stage="BAPP"] { background: var(--blue-dim); color: var(--blue); border-color: var(--blue); }
+  .stage-btn.active[data-stage="BAST"] { background: var(--green-dim); color: var(--green); border-color: var(--green); }
+
+  .row-2 { display: flex; gap: 8px; }
+  .row-2 .field { flex: 1; }
+
+  .btn {
+    width: 100%;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--orange); color: #fff; }
+  .btn-primary:hover:not(:disabled) { opacity: 0.9; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+  .btn-ghost:hover { border-color: var(--text); color: var(--text); }
+
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .toolbar {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .search-wrap { flex: 1; position: relative; }
+  .search-wrap input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 12px;
+    padding: 7px 10px 7px 30px;
+    outline: none;
+  }
+  .search-wrap::before {
+    content: '🔍';
+    position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; color: var(--text-muted);
+  }
+
+  .table-wrap { flex: 1; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th {
+    background: var(--surface);
+    border-bottom: 2px solid var(--border);
+    border-right: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+    position: sticky; top: 0; z-index: 10;
+  }
+  td {
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    padding: 7px 10px;
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+  tr:hover td { background: var(--surface2); }
+
+  .badge-stage {
+    padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 9px;
+  }
+  .badge-stage.BAUT { background: var(--orange-dim); color: var(--orange); }
+  .badge-stage.BAPP { background: var(--blue-dim); color: var(--blue); }
+  .badge-stage.BAST { background: var(--green-dim); color: var(--green); }
+
+  .actid-input {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    width: 130px;
+  }
+  .actid-input:focus { border-color: var(--orange); background: var(--bg); }
+
+  .toast {
+    position: fixed; bottom: 20px; right: 20px;
+    background: var(--surface2); border: 1px solid var(--border);
+    padding: 10px 16px; border-radius: 8px; font-family: var(--mono); font-size: 12px;
+    z-index: 999; transform: translateY(80px); opacity: 0; transition: all .25s;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.err { border-color: var(--red); color: var(--red); }
+  .toast.ok { border-color: var(--green); color: var(--green); }
+
+  /* Configuration Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: none; align-items: center; justify-content: center; z-index: 200;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; width: 460px; max-width: 90vw;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ISM <span>/ Generator Nomor Dokumen</span></div>
+  <div class="spacer"></div>
+  <div class="counters-bar">
+    <div class="counter-badge baut"><span class="lbl">BAUT:</span><span class="val" id="cnt-baut">000</span></div>
+    <div class="counter-badge bapp"><span class="lbl">BAPP:</span><span class="val" id="cnt-bapp">000</span></div>
+    <div class="counter-badge bast"><span class="lbl">BAST:</span><span class="val" id="cnt-bast">000</span></div>
+  </div>
+  <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;margin-left:10px" onclick="openConfigModal()">⚙️ Config</button>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="section-title">Pilih Dokumen</div>
+    <div class="stage-selector">
+      <button class="stage-btn active" data-stage="BAUT" onclick="setStage('BAUT')">BAUT</button>
+      <button class="stage-btn" data-stage="BAPP" onclick="setStage('BAPP')">BAPP</button>
+      <button class="stage-btn" data-stage="BAST" onclick="setStage('BAST')">BAST</button>
+    </div>
+
+    <div class="section-title">Input Parameter</div>
+    <div class="field">
+      <label>Nomor PO *</label>
+      <input id="f-po" placeholder="mis. 4110007278 atau T01AIM22825" />
+    </div>
+
+    <div class="row-2">
+      <div class="field">
+        <label>Bulan *</label>
+        <select id="f-month">
+          <option value="1">I — Jan</option><option value="2">II — Feb</option>
+          <option value="3">III — Mar</option><option value="4">IV — Apr</option>
+          <option value="5">V — Mei</option><option value="6">VI — Jun</option>
+          <option value="7">VII — Jul</option><option value="8" selected>VIII — Ags</option>
+          <option value="9">IX — Sep</option><option value="10">X — Okt</option>
+          <option value="11">XI — Nov</option><option value="12">XII — Des</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Tahun *</label>
+        <input id="f-year" type="number" value="2026" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Daftar ACT ID (Maks 50, Pisahkan dengan koma / baris baru)</label>
+      <textarea id="f-actids" rows="4" placeholder="2604000362&#10;2604000363&#10;(Kosongkan jika diisi belakangan)"></textarea>
+    </div>
+
+    <button class="btn btn-primary" id="btn-generate" onclick="doGenerate()">⚡ Generate Nomor</button>
+  </div>
+
+  <div class="main">
+    <div class="toolbar">
+      <div class="search-wrap">
+        <input id="search-input" placeholder="Cari No PO, ACT ID, No Dokumen..." oninput="applyFilter()" />
+      </div>
+      <select id="filter-stage" class="field" style="width:110px;margin:0" onchange="applyFilter()">
+        <option value="">Semua Stage</option>
+        <option value="BAUT">BAUT</option>
+        <option value="BAPP">BAPP</option>
+        <option value="BAST">BAST</option>
+      </select>
+      <button class="btn btn-ghost" style="width:auto;padding:6px 12px" onclick="exportCSV()">📥 Export CSV</button>
+      <button class="btn btn-ghost" style="width:auto;padding:6px 12px" onclick="fetchState()">🔄 Refresh</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Stage</th>
+            <th>Formatted Number</th>
+            <th>No PO</th>
+            <th>ACT ID</th>
+            <th>Bulan/Tahun</th>
+            <th>Timestamp</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px">Memuat data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Config -->
+<div class="modal-overlay" id="modal-config">
+  <div class="modal">
+    <h3 style="margin-bottom:12px;font-family:var(--mono)">⚙️ Config Web App Endpoint</h3>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Jika dijalankan dari GitHub Pages / Local Browser, masukkan URL Web App Google Apps Script di sini:</p>
+    <div class="field">
+      <label>Apps Script Web App URL</label>
+      <input id="cfg-url" placeholder="https://script.google.com/macros/s/xxx/exec" />
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-primary" onclick="saveConfig()">Simpan Config</button>
+      <button class="btn btn-ghost" onclick="closeConfigModal()">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let currentStage = 'BAUT';
+let stateData = { counters: {}, history: [] };
+let GAS_URL = localStorage.getItem('ism_gen_url') || '';
+
+function setStage(st) {
+  currentStage = st;
+  document.querySelectorAll('.stage-btn').forEach(b => b.classList.toggle('active', b.dataset.stage === st));
+}
+
+function toast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  setTimeout(() => el.className = 'toast', 3000);
+}
+
+function openConfigModal() {
+  document.getElementById('cfg-url').value = GAS_URL;
+  document.getElementById('modal-config').classList.add('open');
+}
+function closeConfigModal() {
+  document.getElementById('modal-config').classList.remove('open');
+}
+function saveConfig() {
+  GAS_URL = document.getElementById('cfg-url').value.trim();
+  localStorage.setItem('ism_gen_url', GAS_URL);
+  closeConfigModal();
+  toast('Config tersimpan!', 'ok');
+  fetchState();
+}
+
+/* API CALL WRAPPER */
+function runBackend(action, payload, onSuccess, onError) {
+  // 1. Jika dijalankan di dalam Google Apps Script Web App
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(res => { if (onSuccess) onSuccess(res); })
+      .withFailureHandler(err => { toast(err.message || String(err), 'err'); if (onError) onError(err); })
+      [action](payload);
+    return;
+  }
+
+  // 2. Jika dijalankan di GitHub Pages / External Browser via fetch POST
+  if (!GAS_URL) {
+    openConfigModal();
+    toast('Masukkan URL Apps Script Web App terlebih dahulu.', 'err');
+    return;
+  }
+
+  fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: action, payload: payload })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.ok) {
+      if (onSuccess) onSuccess(res.result);
+    } else {
+      toast(res.error || 'Gagal memproses backend', 'err');
+      if (onError) onError(res.error);
+    }
+  })
+  .catch(err => {
+    toast('Error jaringan ke Apps Script', 'err');
+    if (onError) onError(err);
+  });
+}
+
+function fetchState() {
+  runBackend('getState', {}, res => {
+    if (res) {
+      stateData = res;
+      renderCounters();
+      applyFilter();
+    }
+  });
+}
+
+function renderCounters() {
+  const yr = String(document.getElementById('f-year').value || new Date().getFullYear());
+  const baut = (stateData.counters.BAUT && stateData.counters.BAUT[yr]) || 0;
+  const bapp = (stateData.counters.BAPP && stateData.counters.BAPP[yr]) || 0;
+  const bast = (stateData.counters.BAST && stateData.counters.BAST[yr]) || 0;
+
+  document.getElementById('cnt-baut').textContent = String(baut).padStart(3, '0');
+  document.getElementById('cnt-bapp').textContent = String(bapp).padStart(3, '0');
+  document.getElementById('cnt-bast').textContent = String(bast).padStart(3, '0');
+}
+
+function doGenerate() {
+  const po = document.getElementById('f-po').value.trim();
+  const month = document.getElementById('f-month').value;
+  const year = document.getElementById('f-year').value;
+  const rawAct = document.getElementById('f-actids').value;
+
+  if (!po) { toast('Nomor PO wajib diisi!', 'err'); return; }
+
+  const actIds = rawAct.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+
+  const btn = document.getElementById('btn-generate');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+
+  const payload = { stage: currentStage, po: po, month: month, year: year, actIds: actIds };
+
+  runBackend('generateNumbers', payload, res => {
+    btn.disabled = false;
+    btn.textContent = '⚡ Generate Nomor';
+    toast(`Berhasil generate ${res.entries.length} nomor!`, 'ok');
+    document.getElementById('f-actids').value = '';
+    fetchState();
+  }, () => {
+    btn.disabled = false;
+    btn.textContent = '⚡ Generate Nomor';
+  });
+}
+
+function updateAct(id, newActId) {
+  runBackend('updateActId', { id: id, actId: newActId }, res => {
+    toast('ACT ID berhasil di-update!', 'ok');
+  });
+}
+
+function deleteItem(id) {
+  if (!confirm('Yakin ingin menghapus record ini dari history?')) return;
+  runBackend('deleteHistory', { id: id }, res => {
+    toast('Record berhasil dihapus', 'ok');
+    fetchState();
+  });
+}
+
+function applyFilter() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const stFilter = document.getElementById('filter-stage').value;
+
+  const filtered = (stateData.history || []).filter(h => {
+    if (stFilter && h.stage !== stFilter) return false;
+    if (q) {
+      const haystack = (h.formatted + h.po + h.actId + h.stage).toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+
+  renderTable(filtered);
+}
+
+function renderTable(list) {
+  const tbody = document.getElementById('table-body');
+  if (!list || !list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px">Belum ada data history.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.slice().reverse().map(h => {
+    const dt = new Date(h.ts).toLocaleString('id-ID');
+    return `<tr>
+      <td><span class="badge-stage ${h.stage}">${h.stage}</span></td>
+      <td><strong style="color:var(--text)">${h.formatted}</strong></td>
+      <td>${h.po}</td>
+      <td>
+        <input class="actid-input" value="${h.actId || ''}" placeholder="+ Tambah ACT ID" onchange="updateAct('${h.id}', this.value)" />
+      </td>
+      <td>Bulan ${h.month} / ${h.year}</td>
+      <td style="color:var(--text-muted);font-size:10px">${dt}</td>
+      <td>
+        <button class="btn btn-ghost" style="padding:2px 6px;font-size:10px;color:var(--red)" onclick="deleteItem('${h.id}')">Hapus</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function exportCSV() {
+  const rows = [['Stage', 'Formatted Number', 'No PO', 'ACT ID', 'Bulan', 'Tahun', 'Timestamp']];
+  (stateData.history || []).forEach(h => {
+    rows.push([
+      `"${h.stage}"`,
+      `"${h.formatted}"`,
+      `"${h.po}"`,
+      `"${h.actId || ''}"`,
+      h.month,
+      h.year,
+      `"${new Date(h.ts).toISOString()}"`
+    ]);
+  });
+
+  const csvContent = '\uFEFF' + rows.map(r => r.join(',')).join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `ISM-Generator-History-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('CSV berhasil diekspor!', 'ok');
+}
+
+window.onload = function() {
+  fetchState();
+};
+</script>
+</body>
+</html>
