@@ -452,6 +452,8 @@ function doGenerate() {
 
 function updateAct(id, newActId) {
   runBackend('updateActId', { id: id, actId: newActId }, res => {
+    const item = (stateData.history || []).find(h => String(h.id) === String(id));
+    if (item) item.actId = newActId;
     toast('ACT ID berhasil di-update!', 'ok');
   });
 }
@@ -494,7 +496,10 @@ function renderTable(list) {
       <td><strong style="color:var(--text)">${h.formatted}</strong></td>
       <td>${h.po}</td>
       <td>
-        <input class="actid-input" value="${h.actId || ''}" placeholder="+ Tambah ACT ID" onchange="updateAct('${h.id}', this.value)" />
+        <div style="display:flex;align-items:center;gap:4px">
+          <input id="act-input-${h.id}" class="actid-input" value="${h.actId || ''}" placeholder="+ Tambah ACT ID" onchange="updateAct('${h.id}', this.value)" />
+          <button class="btn btn-ghost" style="padding:2px 6px;font-size:10px;color:var(--green);width:auto" onclick="updateAct('${h.id}', document.getElementById('act-input-${h.id}').value)" title="Simpan ACT ID">💾 Simpan</button>
+        </div>
       </td>
       <td>Bulan ${h.month} / ${h.year}</td>
       <td style="color:var(--text-muted);font-size:10px">${dt}</td>
